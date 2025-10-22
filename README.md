@@ -9,7 +9,7 @@ Setup: Reproducible Environment
 
 To execute the benchmarks, you only need Docker Desktop installed on your host system (e.g., macOS).
 
-1. Clone the Repository (Replace PLACEHOLDER with your actual URL)
+1. Clone the Repository
 
 git clone [https://github.com/jasenmagee-afk/HPC-Distributed-DL-Benchmarking.git](https://github.com/jasenmagee-afk/HPC-Distributed-DL-Benchmarking.git)
 cd HPC-Distributed-DL-Benchmarking
