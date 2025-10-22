@@ -1,0 +1,52 @@
+import torch
+import time
+import os
+import sys
+
+# Attempt to import the compiled C++ module
+try:
+    import custom_openmp_module
+except ImportError:
+    print("ERROR: custom_openmp_module not found. Run 'python3 setup.py install' first!")
+    sys.exit(1)
+
+# --- Configuration ---
+# OMP_NUM_THREADS is set via the docker run command, defaults to 1
+NUM_THREADS = int(os.environ.get('OMP_NUM_THREADS', 1))
+print(f"--- OpenMP Benchmarking (OMP_NUM_THREADS={NUM_THREADS}) ---")
+
+# Setup a large synthetic batch to simulate a heavy workload (ResNet-50 style input)
+BATCH_SIZE = 64
+IMAGE_SIZE = 224
+CHANNELS = 3
+DUMMY_INPUT = torch.randn(BATCH_SIZE, CHANNELS, IMAGE_SIZE, IMAGE_SIZE, dtype=torch.float32)
+
+# --- Benchmark Function ---
+def benchmark_op(func, input_tensor, iterations=100):
+    # Warm-up runs
+    for _ in range(5):
+        _ = func(input_tensor)
+    
+    start_time = time.time()
+    for _ in range(iterations):
+        _ = func(input_tensor)
+    end_time = time.time()
+    
+    return (end_time - start_time) / iterations # Average time per run
+
+# --- Run Benchmarks ---
+
+# 1. Native PyTorch Baseline (Implicit SIMD/BLAS baseline)
+def pytorch_baseline(data):
+    return (data * 1.5) + torch.sin(data) * 0.1
+
+time_baseline = benchmark_op(pytorch_baseline, DUMMY_INPUT)
+print(f"PyTorch Native Op Time: {time_baseline:.6f} seconds/run")
+
+# 2. OpenMP-accelerated custom kernel
+time_openmp = benchmark_op(custom_openmp_module.custom_filter, DUMMY_INPUT)
+print(f"OpenMP Custom Op Time:  {time_openmp:.6f} seconds/run")
+
+# --- Results ---
+speedup = time_baseline / time_openmp
+print(f"\nSPEEDUP ACHIEVED (Baseline / OpenMP Custom): {speedup:.2f}x")
