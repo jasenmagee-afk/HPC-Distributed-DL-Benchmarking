@@ -1,0 +1,32 @@
+#include <torch/extension.h>
+#include <vector>
+#include <cmath> 
+#include <omp.h>
+#include <iostream>
+
+// --- Helper Function: Custom Image Filter (CPU-bound task) ---
+torch::Tensor openmp_custom_filter(torch::Tensor input) {
+    // Basic checks omitted for brevity in this snippet
+    
+    int64_t num_elements = input.numel();
+    torch::Tensor output = torch::empty_like(input);
+
+    // Get raw pointers to the underlying data
+    const float* input_data = input.data_ptr<float>();
+    float* output_data = output.data_ptr<float>();
+
+    // --- OpenMP Parallel Region ---
+    // Parallelize the loop across available CPU threads.
+    #pragma omp parallel for
+    for (int64_t i = 0; i < num_elements; ++i) {
+        // A computationally intensive, element-wise operation
+        output_data[i] = (input_data[i] * 1.5f) + std::sin(input_data[i]) * 0.1f;
+    }
+
+    return output;
+}
+
+// --- Module Binding (PyTorch/C++ Interface) ---
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+    m.def("custom_filter", &openmp_custom_filter, "Custom image filter with OpenMP (CPU)");
+}
