@@ -32,7 +32,5 @@ COPY . /app/
 # The --user flag ensures it installs to a user directory that is always on the path
 RUN python3 setup.py install
 
-# Cleanup the source files after compilation
-RUN rm -f openmp_filter.cpp setup.py
 
 CMD ["/bin/bash"]
