@@ -1,0 +1,112 @@
+import torch
+import torch.nn as nn
+from torch.utils.data import Dataset, DataLoader
+import time
+import sys
+
+# --- 1. Custom Dataset Classes ---
+
+# A. Good Locality Dataset (C, H, W layout)
+class GoodLocalityDataset(Dataset):
+    """Returns data in optimal (C, H, W) order (contiguous memory)."""
+    def __init__(self, size=1000, img_size=224):
+        self.data = [torch.rand(3, img_size, img_size, dtype=torch.float32) for _ in range(size)]
+        self.labels = [torch.randint(0, 10, (1,)).item() for _ in range(size)]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # Good Locality: Return the tensor as-is, ensuring it is contiguous.
+        return self.data[idx].contiguous(), self.labels[idx]
+
+# B. Poor Locality Dataset (H, W, C layout requiring transpose/permute)
+class PoorLocalityDataset(Dataset):
+    """Returns data in (H, W, C) order, forcing a non-contiguous transpose."""
+    def __init__(self, size=1000, img_size=224):
+        # Store data as (H, W, C), the non-standard order
+        self.data = [torch.rand(img_size, img_size, 3, dtype=torch.float32) for _ in range(size)]
+        self.labels = [torch.randint(0, 10, (1,)).item() for _ in range(size)]
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # Poor Locality: Perform a permute/transpose. This creates a non-contiguous tensor
+        # accessed during the training loop, penalizing cache performance.
+        return self.data[idx].permute(2, 0, 1), self.labels[idx] # H, W, C -> C, H, W
+
+
+# --- 2. Benchmarking Function (Simulates Training Step) ---
+
+def benchmark_dataloader(dataloader, model, device, iterations=5):
+    """Measures the time taken to process data through the pipeline."""
+    start_time = time.time()
+    
+    for i, (images, labels) in enumerate(dataloader):
+        if i >= iterations:
+            break
+            
+        images = images.to(device)
+        labels = labels.to(device)
+        
+        # Forward/Backward Pass Simulation
+        output = model(images)
+        loss = nn.CrossEntropyLoss()(output, labels)
+        loss.backward()
+
+    end_time = time.time()
+    return end_time - start_time
+
+
+# --- 3. Execution ---
+
+# Configuration
+NUM_IMAGES = 1000 
+BATCH_SIZE = 64
+NUM_ITERATIONS = 5 
+DEVICE = torch.device("cpu") 
+
+# Simplified ResNet-like model
+class SimpleResNet(nn.Module):
+    def __init__(self):
+        super(SimpleResNet, self).__init__()
+        self.conv = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.fc = nn.Linear(16 * 112 * 112, 10) 
+
+    def forward(self, x):
+        x = self.pool(torch.relu(self.conv(x)))
+        x = x.view(x.size(0), -1) 
+        x = self.fc(x)
+        return x
+
+model = SimpleResNet().to(DEVICE)
+optimizer = torch.optim.SGD(model.parameters(), lr=0.01) 
+
+print("--- Data Locality Benchmarking (CPU Focus) ---")
+
+# BENCHMARK 1: GOOD LOCALITY 
+good_dataset = GoodLocalityDataset(NUM_IMAGES)
+good_loader = DataLoader(good_dataset, batch_size=BATCH_SIZE, shuffle=False)
+time_good = benchmark_dataloader(good_loader, model, DEVICE, NUM_ITERATIONS)
+time_per_batch_good = time_good / NUM_ITERATIONS
+
+print(f"\n[GOOD LOCALITY (C, H, W)]: Total Time: {time_good:.4f}s")
+
+# BENCHMARK 2: POOR LOCALITY 
+poor_dataset = PoorLocalityDataset(NUM_IMAGES)
+poor_loader = DataLoader(poor_dataset, batch_size=BATCH_SIZE, shuffle=False)
+time_poor = benchmark_dataloader(poor_loader, model, DEVICE, NUM_ITERATIONS)
+time_per_batch_poor = time_poor / NUM_ITERATIONS
+
+print(f"[POOR LOCALITY (H, W, C Transpose)]: Total Time: {time_poor:.4f}s")
+
+
+# --- RESULTS AND ANALYSIS ---
+penalty_factor = time_poor / time_good
+
+print("\n--- RESULTS ---")
+print(f"Time per Batch (Good Locality): {time_per_batch_good:.5f} seconds")
+print(f"Time per Batch (Poor Locality): {time_per_batch_poor:.5f} seconds")
+print(f"Performance Penalty: {penalty_factor:.2f}x SLOWER")
