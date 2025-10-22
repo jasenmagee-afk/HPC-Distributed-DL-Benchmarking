@@ -1,0 +1,21 @@
+import os
+from setuptools import setup, find_packages
+from torch.utils.cpp_extension import BuildExtension, CppExtension
+
+cpp_source = 'openmp_filter.cpp'
+
+setup(
+    name='custom_openmp_module',
+    packages=find_packages(),
+    ext_modules=[
+        CppExtension(
+            name='custom_openmp_module',
+            sources=[cpp_source],
+            # Pass the -fopenmp flag to the C++ compiler (Crucial for OpenMP)
+            extra_compile_args=['-fopenmp']
+        ),
+    ],
+    cmdclass={
+        'build_ext': BuildExtension
+    }
+)
