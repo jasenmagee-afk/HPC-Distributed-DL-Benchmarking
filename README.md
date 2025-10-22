@@ -5,7 +5,7 @@ This repository contains the source code and configuration files for my High Per
 
 The entire project is containerized using Docker to guarantee a fully reproducible environment, including the specific versions of PyTorch, OpenMPI, and the GNU compiler tools.
 
-🚀 Setup: Reproducible Environment
+Setup: Reproducible Environment
 
 To execute the benchmarks, you only need Docker Desktop installed on your host system (e.g., macOS).
 
@@ -22,7 +22,7 @@ This command reads the Dockerfile, installs all dependencies (Ubuntu 22.04, Open
 docker build -t hpc-project-env.
 
 
-🔬 Execution: Benchmarking Experiments
+Execution: Benchmarking Experiments
 
 All experiments are executed inside the Docker container using the docker run command.
 
